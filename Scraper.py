@@ -5,20 +5,28 @@ from credentials import bearer_token  # bearer token for your Twitter account sh
 
 
 class TweetStorage:
-    def __init__(self):
+    def __init__(self, store_raw_requests=False):
         self.attributes = ['id', 'text', 'hashtags', 'created_at', 'geo', 'like_count', 'quote_count', 'reply_count',
                            'retweet_count']
         self._data_frame = pd.DataFrame(columns=self.attributes)
         self.file_name = "tweets_{}.csv".format(datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S'))
 
+        self.store_raw_requests = store_raw_requests
+        self.raw_requests_file = None
+        if self.store_raw_requests:
+            self.raw_requests_file = open(self.file_name + '_raw.txt', 'a+')
+
     def save_tweets(self, jason_response):
+        if self.store_raw_requests:
+            self.raw_requests_file.write(jason_response + "\n\n")
+
         processed_tweets = self.process_tweets(jason_response)
         self.add_tweets_to_data_frame(processed_tweets)
 
     def process_tweets(self, jason_response):
         tweets = list()
         for tweet in jason_response['data']:
-            hashtags = " ".join([tag['tag'] for tag in tweet.get('entities', {}).get('hashtags', [])])
+            hashtags = " ".join(['#' + tag['tag'] for tag in tweet.get('entities', {}).get('hashtags', [])])
             processed_tweet = (tweet['id'], tweet['text'], hashtags, tweet['created_at'], tweet.get('geo', ''),
                                tweet['public_metrics']['like_count'], tweet['public_metrics']['quote_count'],
                                tweet['public_metrics']['reply_count'], tweet['public_metrics']['retweet_count'])
@@ -39,6 +47,10 @@ class TweetStorage:
                                                                               self.file_name)
         description_file.write(description)
         description_file.close()
+
+        if self.store_raw_requests:
+            self.raw_requests_file.close()
+
 
 
 class Scraper:
