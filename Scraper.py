@@ -54,6 +54,8 @@ class TweetStorage:
             self.raw_requests_file.close()
 
 
+
+
 class Scraper:
     def __init__(self, query, results_chunk=10, log=False, **kwargs):
         self.query = query
@@ -131,6 +133,13 @@ class Scraper:
                                                    **self._kwargs)
                 error_try_count = 0
                 last_response = response
+
+                if self.log:
+                    print(page * self.results_chunk, 'tweets retrieved so far')
+
+                if page % 30 == 0:
+                    self.store(response.json().get('meta'))  # checkpoint after each 30 pages
+
                 time.sleep(1)  # to prevent the 1 sec throttling
 
             # if request was not successful, then handle errors:
