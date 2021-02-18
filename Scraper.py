@@ -110,7 +110,7 @@ class Scraper:
             print('starting to fetch tweets, the base url is: ', current_page_url)
 
         error_try_count = 0
-        while max_pages is not None and page <= max_pages:
+        while not max_pages or max_pages is not None and page <= max_pages:
             if self.log:
                 print('retrieving page', page, '...')
 
