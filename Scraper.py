@@ -109,6 +109,7 @@ class Scraper:
         if self.log:
             print('starting to fetch tweets, the base url is: ', current_page_url)
 
+        last_response = None
         error_try_count = 0
         while not max_pages or max_pages is not None and page <= max_pages:
             if self.log:
@@ -129,10 +130,12 @@ class Scraper:
                 current_page_url = self.create_url(self.query, max_results=self.results_chunk, next_token=next_token,
                                                    **self._kwargs)
                 error_try_count = 0
+                last_response = response
                 time.sleep(1)  # to prevent the 1 sec throttling
 
             # if request was not successful, then handle errors:
             elif response.status_code == 429:  # too many requests
+                self.store(last_response.json().get('meta'))  # store checkpoint, just in case everything got messed up; store response meta as well, because it contains where it left off
                 try:
                     print('too many requests ... ')
                     print('the header is ', response.headers)
@@ -152,7 +155,8 @@ class Scraper:
                 continue
 
             else:
-                print('unhandled error, try again in 5 minutes')
+                print('unhandled error, try again in 5 minutes, storing checkpoint ...')
+                self.store(last_response.json().get('meta'))  # store checkpoint, just in case everything got messed up; store response meta as well, because it contains where it left off
                 time.sleep(5 * 60)
                 error_try_count += 1
 
@@ -165,13 +169,14 @@ class Scraper:
 
                 continue
 
-
-
     def scrape(self, max_pages=2):
         try:
             self.retrieve_pages(max_pages)
         except:
             print('program failed at some point, saving everything so far...')
         finally:
-            description = "query: {} \nkwargs: {}".format(self.query, self._kwargs)
-            self.tweet_storage.store(description)
+            self.store()
+
+    def store(self, extra_description=""):
+        description = "query: {} \nkwargs: {}\nextra description: {}".format(self.query, self._kwargs, extra_description)
+        self.tweet_storage.store(description)
