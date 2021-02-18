@@ -2,6 +2,8 @@ import requests
 import pandas as pd
 from datetime import datetime
 from credentials import bearer_token  # bearer token for your Twitter account should be stored here
+import time
+import urllib
 
 
 class TweetStorage:
@@ -52,13 +54,13 @@ class TweetStorage:
             self.raw_requests_file.close()
 
 
-
 class Scraper:
-    def __init__(self, query, results_chunk=10, **kwargs):
+    def __init__(self, query, results_chunk=10, log=False, **kwargs):
         self.query = query
         self.results_chunk = results_chunk
         # other kwargs will go to the request url directly
         self._kwargs = kwargs  # TODO: kwargs should be validated
+        self.log = log
 
         self._base_url = "https://api.twitter.com/2/tweets/search/all"
         self._headers = self._create_headers(bearer_token)
@@ -66,6 +68,7 @@ class Scraper:
         self.tweet_storage = TweetStorage()
 
     def create_url(self, query, max_results=10, **kwargs):
+        query = urllib.parse.quote(query)
         tweet_fields = "tweet.fields=created_at,geo,text,public_metrics"
         url = "{}?query={}&max_results={}&{}".format(self._base_url, query, max_results, tweet_fields)
         # add any more given parameters to the url's query params
@@ -75,15 +78,20 @@ class Scraper:
         return url
 
     def make_request(self, url):
+        if self.log:
+            print('requesting', url)
         response = requests.request("GET", url, headers=self._headers)
-        print('The response status code: ', response.status_code)
+        if self.log:
+            print('The response status code: ', response.status_code)
         if response.status_code != 200:
-            raise Exception(
-                "Request returned an error: {} {}".format(
-                    response.status_code, response.text
-                )
-            )
-        return response.json()
+            # raise Exception(
+            #     "Request returned an error: {} {}".format(
+            #         response.status_code, response.text
+            #     )
+            # )
+            print('error requesting', url)
+            print('the status code is', response.status_code, 'the message is', response.text)
+        return response
 
     def _create_headers(self, bearer_token):
         headers = {"Authorization": "Bearer {}".format(bearer_token)}
@@ -98,24 +106,72 @@ class Scraper:
         page = 1
         current_page_url = self.create_url(self.query, max_results=self.results_chunk,
                                            **self._kwargs)  # the initial url containing the query
+        if self.log:
+            print('starting to fetch tweets, the base url is: ', current_page_url)
+
+        error_try_count = 0
         while max_pages is not None and page <= max_pages:
-            jason_response = self.make_request(current_page_url)
+            if self.log:
+                print('retrieving page', page, '...')
 
-            self.save_tweets(jason_response)
+            response = self.make_request(current_page_url)
 
-            next_token = jason_response['meta'].get('next_token')
-            if not next_token:  # if twitter has no further tweets, then it's enough
-                break
+            if response.status_code == 200:  # if the request was successful
+                jason_response = response.json()
+                self.save_tweets(jason_response)
 
-            page += 1
-            current_page_url = self.create_url(self.query, max_results=self.results_chunk, next_token=next_token,
-                                               **self._kwargs)
+                next_token = jason_response['meta'].get('next_token')
+                if not next_token:  # if twitter has no further tweets, then it's enough
+                    print('no more tweets left to retrieve...')
+                    break
+
+                page += 1
+                current_page_url = self.create_url(self.query, max_results=self.results_chunk, next_token=next_token,
+                                                   **self._kwargs)
+                error_try_count = 0
+                time.sleep(1)  # to prevent the 1 sec throttling
+
+            # if request was not successful, then handle errors:
+            elif response.status_code == 429:  # too many requests
+                try:
+                    print('too many requests ... ')
+                    print('the header is ', response.headers)
+                    throttle_end_timestamp = int(response.headers.get('x-rate-limit-reset'))
+                    throttle_end_time = datetime.strftime(datetime.fromtimestamp(throttle_end_timestamp), "%H:%M:%S")
+                    time_to_wait = int(throttle_end_timestamp - datetime.now().timestamp()) + 5
+                    print('lets rest for', time_to_wait, 'seconds and wake up at', throttle_end_time)
+                    print('sleeping ...')
+                    time.sleep(time_to_wait)
+                except:
+                    print('lets rest for 3 minutes and try again...')
+                    error_try_count += 1
+                    time.sleep(60 * 3)  # if the original waiting plan failed, sleep for 3 minutes before trying
+                finally:
+                    pass  # to prevent closing the app if it terminates in the except block for any reason e.g. manually
+
+                continue
+
+            else:
+                print('unhandled error, try again in 5 minutes')
+                time.sleep(5 * 60)
+                error_try_count += 1
+
+                if error_try_count == 10:
+                    message_from_admin = input('tried for 10 times and failed due to the error shown above, try again? y/n')
+                    if message_from_admin == 'y':
+                        error_try_count = 0
+                    else:
+                        break
+
+                continue
+
+
 
     def scrape(self, max_pages=2):
         try:
             self.retrieve_pages(max_pages)
+        except:
+            print('program failed at some point, saving everything so far...')
         finally:
             description = "query: {} \nkwargs: {}".format(self.query, self._kwargs)
             self.tweet_storage.store(description)
-
-
