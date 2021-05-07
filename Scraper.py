@@ -69,8 +69,12 @@ class Scraper:
 
     def create_url(self, query, max_results=10, **kwargs):
         query = urllib.parse.quote(query)
-        tweet_fields = "tweet.fields=created_at,geo,text,public_metrics"
-        url = "{}?query={}&max_results={}&{}".format(self._base_url, query, max_results, tweet_fields)
+        tweet_fields = "tweet.fields=created_at,geo,text,public_metrics,entities,referenced_tweets"
+        user_fields = "user.fields=name,username,public_metrics,location"
+        place_fields = "place.fields=country,country_code,geo,name"
+        expansions = "expansions=geo.place_id,referenced_tweets.id"
+        url = "{}?query={}&max_results={}&{}&{}&{}&{}".format(self._base_url, query, max_results, tweet_fields,
+                                                              user_fields, place_fields, expansions)
         # add any more given parameters to the url's query params
         for key, value in kwargs.items():
             if value:
