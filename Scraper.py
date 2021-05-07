@@ -54,10 +54,8 @@ class TweetStorage:
             self.raw_requests_file.close()
 
 
-
-
 class Scraper:
-    def __init__(self, query, results_chunk=10, log=False, **kwargs):
+    def __init__(self, query, results_chunk=10, log=False, store_raw_requests=False, **kwargs):
         self.query = query
         self.results_chunk = results_chunk
         # other kwargs will go to the request url directly
@@ -67,7 +65,7 @@ class Scraper:
         self._base_url = "https://api.twitter.com/2/tweets/search/all"
         self._headers = self._create_headers(bearer_token)
 
-        self.tweet_storage = TweetStorage()
+        self.tweet_storage = TweetStorage(store_raw_requests=store_raw_requests)
 
     def create_url(self, query, max_results=10, **kwargs):
         query = urllib.parse.quote(query)
