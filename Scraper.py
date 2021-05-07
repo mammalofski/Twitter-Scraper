@@ -20,7 +20,7 @@ class TweetStorage:
 
     def save_tweets(self, jason_response):
         if self.store_raw_requests:
-            self.raw_requests_file.write(jason_response + "\n\n")
+            self.raw_requests_file.write(str(jason_response) + "\n\n")
 
         processed_tweets = self.process_tweets(jason_response)
         self.add_tweets_to_data_frame(processed_tweets)
@@ -65,7 +65,7 @@ class Scraper:
         self._base_url = "https://api.twitter.com/2/tweets/search/all"
         self._headers = self._create_headers(bearer_token)
 
-        self.tweet_storage = TweetStorage(store_raw_requests=store_raw_requests)
+        self.tweet_storage = TweetStorage(store_raw_requests)
 
     def create_url(self, query, max_results=10, **kwargs):
         query = urllib.parse.quote(query)
@@ -126,14 +126,16 @@ class Scraper:
                     print('no more tweets left to retrieve...')
                     break
 
+                if self.log:
+                    print(page * self.results_chunk, 'tweets retrieved so far')
+
                 page += 1
                 current_page_url = self.create_url(self.query, max_results=self.results_chunk, next_token=next_token,
                                                    **self._kwargs)
                 error_try_count = 0
                 last_response = response
 
-                if self.log:
-                    print(page * self.results_chunk, 'tweets retrieved so far')
+
 
                 if page % 30 == 0:
                     self.store(response.json().get('meta'))  # checkpoint after each 30 pages
@@ -179,8 +181,9 @@ class Scraper:
     def scrape(self, max_pages=2):
         try:
             self.retrieve_pages(max_pages)
-        except:
-            print('program failed at some point, saving everything so far...')
+        except Exception as e:
+            print('program failed at some point, saving everything so far..., the error is:')
+            print(e)
         finally:
             self.store()
 
