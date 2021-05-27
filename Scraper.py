@@ -14,7 +14,7 @@ class TweetStorage:
         self.file_name = "tweets_{}.csv".format(datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S'))
 
         self.store_raw_requests = store_raw_requests
-        self.description_file = open('description_{}.txt'.format(self.file_name), 'w+')
+        # self.description_file = open('description_{}.txt'.format(self.file_name), 'w+')
         self.raw_requests_file = None
         if self.store_raw_requests:
             self.raw_requests_file = open(self.file_name + '_raw.txt', 'a+')
@@ -45,16 +45,16 @@ class TweetStorage:
         self._data_frame.index.name = 'index'
         self._data_frame.to_csv(self.file_name)
         # write the description for the existing gathered data
-        # description_file = open('description_{}.txt'.format(self.file_name), 'w+')
+        description_file = open('description_{}.txt'.format(self.file_name), 'w+')
         description += "\n\nheaders: {}\ndata_shape: {}\nfor file: {}".format(self.attributes, self._data_frame.shape,
                                                                               self.file_name)
-        self.description_file.write(description)
+        description_file.write(description)
+        description_file.close()
 
         if not checkpoint:
             self.close_files()
 
     def close_files(self):
-        self.description_file.close()
         if self.store_raw_requests:
             self.raw_requests_file.close()
 
