@@ -14,6 +14,7 @@ class TweetStorage:
         self.file_name = "tweets_{}.csv".format(datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S'))
 
         self.store_raw_requests = store_raw_requests
+        self.description_file = open('description_{}.txt'.format(self.file_name), 'w+')
         self.raw_requests_file = None
         if self.store_raw_requests:
             self.raw_requests_file = open(self.file_name + '_raw.txt', 'a+')
@@ -39,17 +40,21 @@ class TweetStorage:
         new_df = pd.DataFrame(tweets, columns=self.attributes)
         self._data_frame = self._data_frame.append(new_df)
 
-    def store(self, description=''):
+    def store(self, description='', checkpoint=False):
         print('exporting as csv ... ')
         self._data_frame.index.name = 'index'
         self._data_frame.to_csv(self.file_name)
         # write the description for the existing gathered data
-        description_file = open('description_{}.txt'.format(self.file_name), 'w+')
+        # description_file = open('description_{}.txt'.format(self.file_name), 'w+')
         description += "\n\nheaders: {}\ndata_shape: {}\nfor file: {}".format(self.attributes, self._data_frame.shape,
                                                                               self.file_name)
-        description_file.write(description)
-        description_file.close()
+        self.description_file.write(description)
 
+        if not checkpoint:
+            self.close_files()
+
+    def close_files(self):
+        self.description_file.close()
         if self.store_raw_requests:
             self.raw_requests_file.close()
 
@@ -139,16 +144,14 @@ class Scraper:
                 error_try_count = 0
                 last_response = response
 
-
-
                 if page % 30 == 0:
-                    self.store(response.json().get('meta'))  # checkpoint after each 30 pages
+                    self.store(response.json().get('meta'), checkpoint=True)  # checkpoint after each 30 pages
 
                 time.sleep(1)  # to prevent the 1 sec throttling
 
             # if request was not successful, then handle errors:
             elif response.status_code == 429:  # too many requests
-                self.store(last_response.json().get('meta'))  # store checkpoint, just in case everything got messed up; store response meta as well, because it contains where it left off
+                self.store(last_response.json().get('meta'), checkpoint=True)  # store checkpoint, just in case everything got messed up; store response meta as well, because it contains where it left off
                 try:
                     print('too many requests ... ')
                     print('the header is ', response.headers)
@@ -169,7 +172,7 @@ class Scraper:
 
             else:
                 print('unhandled error, try again in 5 minutes, storing checkpoint ...')
-                self.store(last_response.json().get('meta'))  # store checkpoint, just in case everything got messed up; store response meta as well, because it contains where it left off
+                self.store(last_response.json().get('meta'), checkpoint=True)  # store checkpoint, just in case everything got messed up; store response meta as well, because it contains where it left off
                 time.sleep(5 * 60)
                 error_try_count += 1
 
@@ -191,6 +194,6 @@ class Scraper:
         finally:
             self.store()
 
-    def store(self, extra_description=""):
+    def store(self, extra_description="", checkpoint=False):
         description = "query: {} \nkwargs: {}\nextra description: {}".format(self.query, self._kwargs, extra_description)
-        self.tweet_storage.store(description)
+        self.tweet_storage.store(description, checkpoint=checkpoint)
