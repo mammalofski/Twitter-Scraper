@@ -13,11 +13,13 @@ class TweetStorage:
         self._data_frame = pd.DataFrame(columns=self.attributes)
         self.file_name = "tweets_{}.csv".format(datetime.strftime(datetime.now(), '%Y-%m-%d %H:%M:%S'))
 
+        self.file_name = self.file_name.replace(":", "-")  # This line is a fix in Windows OS, where it cannot create the name which includes two colons (:)
+
         self.store_raw_requests = store_raw_requests
         # self.description_file = open('description_{}.txt'.format(self.file_name), 'w+')
         self.raw_requests_file = None
         if self.store_raw_requests:
-            self.raw_requests_file = open(self.file_name + '_raw.txt', 'a+')
+            self.raw_requests_file = open(self.file_name + '_raw.txt', 'a+', encoding="utf-8")
 
     def save_tweets(self, jason_response):
         if self.store_raw_requests:
